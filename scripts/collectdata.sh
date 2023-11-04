@@ -1,0 +1,3 @@
+curl -s -X GET -u '${JFROG_USER}:${JFROG_PASSWORD}' "https://devops.jfrog.io/artifactory/api/search/dates?dateFields=created&from=$1&to=$2&repos=devops-lib-snapshots" > $(date +"%Y-%m-%d")-devops-lib-snapshots.txt
+curl -s -X GET -u '${JFROG_USER}:${JFROG_PASSWORD}' "https://devops.jfrog.io/artifactory/api/search/dates?dateFields=created&from=$1&to=$2&repos=devops" > $(date +"%Y-%m-%d")-devops.txt
+curl -s -X GET -u '${JFROG_USER}:${JFROG_PASSWORD}' "https://devops.jfrog.io/artifactory/api/search/dates?dateFields=created&from=$1&to=$2&repos=devops-lib-releases" > $(date +"%Y-%m-%d")-devops-lib-releases.txt

@@ -1,0 +1,90 @@
+pipeline {
+  agent {
+    node {
+      label 'terraform'
+    }
+  }
+  environment {
+    JFROG_ACCESS_TOKEN = credentials("prod/jfrog/devops/access_token")
+  }
+
+  stages {
+    // [Collecting list of artifacts to delete]
+    stage('Collecting list of artifacts to delete - manual list') {
+        steps {
+          ansiColor('xterm') {
+              script {
+                if (env.APP_PATH != '') {
+                  sh '''
+                  DATE=$(date -d ${NOT_DOWNLOADED_SINCE} +%s%3N)
+                  extDate=000
+                  DATE="$DATE$extDate"
+                  echo $DATE
+                  curl -s -X GET -u devops:${JFROG_ACCESS_TOKEN} "https://devops.jfrog.io/artifactory/api/search/usage?notUsedSince=$DATE&repos=${REPO}" | grep uri | awk '{print $3}' | sed s"/.$//" | sed s"/.$//" | sed -r "s/^.{1}//" | grep ${APP_PATH} > artifacts.txt
+                  while read artifact; do
+                    echo "$artifact"
+                  done < artifacts.txt
+                  '''
+                } else  {
+                  sh 'echo "Skipping manual list"'
+                }
+              }
+          }
+        }
+    }
+    stage('Collecting list of artifacts to delete - default list') {
+        steps {
+          ansiColor('xterm') {
+              script {
+                if (env.APP_PATH == '') {
+                  sh '''
+                  NOT_DOWNLOADED_SINCE=$(date -d "-1080:00:00" +%Y-%m-%d)
+                  DATE=$(date -d $NOT_DOWNLOADED_SINCE +%s%3N)
+                  extDate=000
+                  DATE="$DATE$extDate"
+                  echo $DATE
+                  set +e
+                  curl -s -X GET -u devops:${JFROG_ACCESS_TOKEN} "https://devops.jfrog.io/artifactory/api/search/usage?notUsedSince=$DATE&repos=devops-lib-snapshots" | grep uri | awk '{print $3}' | sed s"/.$//" | sed s"/.$//" | sed -r "s/^.{1}//" | grep -E "service/api1|service/api2|service/api3/app|" > artifacts.txt
+                  curl -s -X GET -u devops:${JFROG_ACCESS_TOKEN} "https://devops.jfrog.io/artifactory/api/search/usage?notUsedSince=$DATE&repos=devops-lib-releases" | grep uri | awk '{print $3}' | sed s"/.$//" | sed s"/.$//" | sed -r "s/^.{1}//" | grep -E "service/api" >> artifacts.txt
+                  curl -s -X GET -u devops:${JFROG_ACCESS_TOKEN} "https://devops.jfrog.io/artifactory/api/search/usage?notUsedSince=$DATE&repos=devops" | grep uri | awk '{print $3}' | sed s"/.$//" | sed s"/.$//" | sed -r "s/^.{1}//" | grep -E "service-1|service-2|service-3|service-4|" >> artifacts.txt
+                  while read artifact; do
+                    echo "$artifact"
+                  done < artifacts.txt
+                  '''
+                } else {
+                  sh 'echo "Skipping default list - something went wrong"'
+                }
+              }
+          }
+        }
+    }
+    // [END]
+    // make approval skip when its automated job
+    // stage('Approval') {
+    //     steps {
+    //       script {
+    //         def userInput = input(id: 'confirm', message: 'Proceed with deleting collected artifacts?', parameters: [ [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Proceed with deleting collected artifacts?', name: 'confirm'] ])
+    //       }
+    //     }
+    // }
+
+    // [START Deleting collected artifacts]
+    stage('Deleting collected artifacts') {
+      steps {
+        ansiColor('xterm') {
+        sh '''
+        while read artifact; do
+          curl -s -X GET -u devops:${JFROG_ACCESS_TOKEN} $artifact | grep downloadUri | awk '{print $3}' | sed s'/.$//' | sed s'/.$//' | sed -r 's/^.{1}//' >> artifactstbd.txt
+        done < artifacts.txt
+        set +e
+        while read artifactstbd; do
+          echo "Removing artifact $artifactstbd"
+          curl -X DELETE -u devops:${JFROG_ACCESS_TOKEN} $artifactstbd
+        done < artifactstbd.txt
+        '''
+        }
+      }
+    }
+    // [END]
+  }
+}

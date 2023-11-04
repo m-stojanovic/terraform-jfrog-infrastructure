@@ -1,0 +1,2 @@
+# example URL:
+https://devops.jfrog.io/artifactory/api/storage/devops/builds/some-pub/some-app/some-app-1.0-1_11111111.noarch.rpm
